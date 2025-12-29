@@ -15,7 +15,12 @@ export const TemplateSplitterNode = memo(({ id }: NodeProps) => {
   }, [edges, nodes, id]);
 
   const template = sourceNode?.data?.template;
-  const containers = template?.containers || [];
+  
+  // SORT LOGIC: Alphabetical
+  const sortedContainers = useMemo(() => {
+      if (!template?.containers) return [];
+      return [...template.containers].sort((a, b) => a.name.localeCompare(b.name));
+  }, [template]);
 
   // Helper to check if a specific container handle is connected
   const isHandleConnected = (handleId: string) => {
@@ -50,13 +55,13 @@ export const TemplateSplitterNode = memo(({ id }: NodeProps) => {
              <span className="text-xs italic">No Template Detected</span>
           </div>
         ) : (
-          containers.length === 0 ? (
+          sortedContainers.length === 0 ? (
             <div className="text-xs text-slate-500 text-center py-2">
               Template has no containers
             </div>
           ) : (
             <div className="flex flex-col space-y-1">
-              {containers.map((container, index) => {
+              {sortedContainers.map((container, index) => {
                 const theme = getSemanticThemeObject(container.name, index);
                 const isConnected = isHandleConnected(container.name);
                 

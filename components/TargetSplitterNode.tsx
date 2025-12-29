@@ -31,8 +31,11 @@ export const TargetSplitterNode = memo(({ id }: NodeProps) => {
     return () => unregisterNode(id);
   }, [id, unregisterNode]);
 
-
-  const containers = template?.containers || [];
+  // SORT LOGIC: Alphabetical
+  const sortedContainers = useMemo(() => {
+      if (!template?.containers) return [];
+      return [...template.containers].sort((a, b) => a.name.localeCompare(b.name));
+  }, [template]);
 
   // 4. Identify connected content slots (UI logic)
   const connectedSlots = useMemo(() => {
@@ -87,14 +90,14 @@ export const TargetSplitterNode = memo(({ id }: NodeProps) => {
           <div className="flex flex-col space-y-3">
              <div className="text-[10px] text-slate-400 font-medium px-1 flex justify-between">
                 <span>SLOT DEFINITIONS</span>
-                <span>{connectedSlots.size} / {containers.length} Filled</span>
+                <span>{connectedSlots.size} / {sortedContainers.length} Filled</span>
              </div>
 
              <div className="space-y-1">
-               {containers.length === 0 ? (
+               {sortedContainers.length === 0 ? (
                  <div className="text-xs text-slate-500 p-2 italic">Target has no containers</div>
                ) : (
-                 containers.map((container, index) => {
+                 sortedContainers.map((container, index) => {
                    const isFilled = connectedSlots.has(container.name);
                    const theme = getSemanticThemeObject(container.name, index);
                    
