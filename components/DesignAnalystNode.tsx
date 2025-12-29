@@ -589,6 +589,22 @@ export const DesignAnalystNode = memo(({ id, data }: NodeProps<PSDNodeData>) => 
     const sourceH = sourceData.container.bounds.h;
     const targetW = targetData.bounds.w;
     const targetH = targetData.bounds.h;
+    
+    // 1. Semantic Intent Detection
+    const isBackground = /BG|BACKGROUND/i.test(sourceData.container.containerName);
+    
+    // 2. Geometric Math
+    const ratioX = targetW / sourceW;
+    const ratioY = targetH / sourceH;
+    
+    // "Cover" = Max ratio (Fills gaps, crops excess)
+    // "Contain" = Min ratio (Fits inside, leaves gaps)
+    const coverScale = Math.max(ratioX, ratioY);
+    const containScale = Math.min(ratioX, ratioY);
+    
+    // Select Strategy based on Intent
+    const optimalScale = isBackground ? coverScale : containScale;
+    const scaleStrategyName = isBackground ? "COVER (Fill)" : "CONTAIN (Fit)";
 
     const flattenLayers = (layers: SerializableLayer[], depth = 0): any[] => {
         let flat: any[] = [];
@@ -611,42 +627,39 @@ export const DesignAnalystNode = memo(({ id, data }: NodeProps<PSDNodeData>) => 
     const layerAnalysisData = flattenLayers(sourceData.layers as SerializableLayer[]);
 
     let prompt = `
-        ROLE: Precision Drafting Engine & Senior PSD Compositor.
-        GOAL: Perform "Geometry-First Semantic Recomposition" using a STRICT GRID SYSTEM.
+        ROLE: Precision Layout Engine.
+        GOAL: Remap source assets to target dimensions using strict geometric rules.
         
         CONTAINER CONTEXT:
-        - Source: ${sourceData.container.containerName} (${sourceW}x${sourceH})
-        - Target: ${targetData.name} (${targetW}x${targetH})
+        - Name: ${sourceData.container.containerName}
+        - Type: ${isBackground ? "BACKGROUND (Visual Foundation)" : "UI CONTENT (Interactive Elements)"}
+        - Strategy: ${scaleStrategyName}
+        - Target Dimensions: ${targetW}x${targetH}
         
+        GEOMETRIC MANDATE:
+        - Calculated Optimal Scale: ${optimalScale.toFixed(4)}x
+        
+        RULES:
+        1. SCALE FACTOR: 
+           You MUST set 'suggestedScale' to approximately ${optimalScale.toFixed(4)}.
+           ${isBackground ? "-> This is a BACKGROUND. You must FILL the entire canvas. Do NOT leave white bars. Crop if necessary." : "-> This is CONTENT. Ensure all elements are visible within bounds."}
+        
+        2. ANCHORING:
+           - If using COVER mode, center the asset to crop evenly.
+           - If using CONTAIN mode, center elements to maintain balance.
+
         LAYER HIERARCHY (JSON):
         ${JSON.stringify(layerAnalysisData.slice(0, 40))} ... (Truncated)
 
-        CRITICAL GRID LOGIC:
-        1. Analyze the Target Aspect Ratio (${(targetW/targetH).toFixed(2)}) vs Source (${(sourceW/sourceH).toFixed(2)}).
-        2. If Target is narrower/taller, STACK elements vertically.
-        3. If Target is wider, distribute horizontally.
-        4. Calculate integer 'yOffset' and 'xOffset' relative to Target Top-Left (0,0).
-        5. Maintain visual hierarchy: Key elements (Titles) must be prominent.
-
         DECISION MATRIX (Strict Enforcement):
-        - METHOD 'GEOMETRIC': Default. Use purely geometric transforms (scale/translate). 'generativePrompt' MUST be empty string "".
-        - METHOD 'GENERATIVE': Use ONLY if user explicitly requests (e.g., "generate", "create", "nano banana") OR if aspect ratio mismatch is > 2.0.
-          IF GENERATIVE IS SELECTED:
-          - Set 'generativePrompt' to: "Generate a high-fidelity expansion. Use the attached sourceReference for style, lighting, and texture matching. Do not deviate from the original aesthetic."
+        - METHOD 'GEOMETRIC': Default. Use purely geometric transforms.
+        - METHOD 'GENERATIVE': Use ONLY if user explicitly requests it or if aspect ratio mismatch is severe (> 2.0).
         - METHOD 'HYBRID': Use geometric layout for main elements but generate background fill.
         
-        PIVOT PROTOCOL (Geometric Reset):
-        If the user requests to "undo generation", "reset", "use original pixels", "stop generating", or if the strategy is GEOMETRIC:
-        1. Set 'method' to 'GEOMETRIC'.
-        2. Set 'generativePrompt' to "" (empty string).
-        3. Set 'clearance' to true.
-        4. Reset 'suggestedScale' to optimal geometric fit.
-
         FALLBACK PROTOCOL:
         If standard scaling fails (leaves gaps > 10% or cuts content) AND you provide a 'generativePrompt':
         1. Set 'method' to 'HYBRID' or 'GENERATIVE'.
         2. Prefix 'reasoning' with "[FALLBACK_REQUIRED]".
-        3. Provide the specific 'generativePrompt'.
     `;
     
     // Knowledge Injection (Only if not null)
